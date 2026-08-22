@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Cart - In-App Room Joiner</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK (Compat Version 9) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --success: #10b981;
+            --bg-body: #f1f5f9;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #cbd5e1;
+            
+            --cat-fresh: #dcfce7; --cat-fresh-txt: #15803d;
+            --cat-use: #fef3c7; --cat-use-txt: #b45309;
+            --cat-drink: #e0e7ff; --cat-drink-txt: #3730a3;
+            --cat-other: #f1f5f9; --cat-other-txt: #475569;
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #475569;
+
+            --cat-fresh: #14532d; --cat-fresh-txt: #86efac;
+            --cat-use: #78350f; --cat-use-txt: #fde047;
+            --cat-drink: #312e81; --cat-drink-txt: #a5b4fc;
+            --cat-other: #334155; --cat-other-txt: #cbd5e1;
+        }
+
+        * { box-sizing: border-box; font-family: 'Sarabun', sans-serif; transition: 0.2s; }
+        body { background: var(--bg-body); color: var(--text-main); margin: 0; padding: 16px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+
+        /* Auth Screen (UI แบบเดิมดั้งเดิม) */
+        .auth-card {
+            background: var(--bg-card);
+            width: 100%;
+            max-width: 450px;
+            border-radius: 28px;
+            padding: 36px 28px;
+            box-shadow: 0 20px 30px rgba(0,0,0,0.08);
+            border: 2px solid var(--border);
+            text-align: center;
+        }
+
+        .auth-card h2 { font-size: 28px; margin-top: 0; color: var(--primary); }
+        .auth-card p { color: var(--text-muted); font-size: 15px; margin-bottom: 24px; }
+
+        .auth-input {
+            width: 100%;
+            padding: 16px;
+            border-radius: 16px;
+            border: 2px solid var(--border);
+            background: var(--bg-body);
+            color: var(--text-main);
+            font-size: 18px;
+            margin-bottom: 12px;
+            outline: none;
+            font-weight: 600;
+        }
+        .auth-input:focus { border-color: var(--primary); }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 8px; }
+        .btn-submit {
+            flex: 1;
+            padding: 16px;
+            border-radius: 16px;
+            border: none;
+            background: var(--primary);
+            color: white;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .btn-secondary {
+            flex: 1;
+            padding: 16px;
+            border-radius: 16px;
+            border: 2px solid var(--border);
+            background: var(--bg-body);
+            color: var(--text-main);
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        /* Room Control Bar ในหน้า UI ซื้อของ */
+        .room-bar {
+            background: #e0e7ff;
+            color: #3730a3;
+            padding: 12px 18px;
+            border-radius: 18px;
+            font-weight: 700;
+            font-size: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        [data-theme="dark"] .room-bar { background: #312e81; color: #a5b4fc; }
+
+        .room-actions { display: flex; gap: 6px; }
+        .room-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 6px 12px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        /* Main App Container */
+        .app-container {
+            display: none;
+            background: var(--bg-card);
+            width: 100%;
+            max-width: 800px;
+            border-radius: 28px;
+            padding: 28px;
+            box-shadow: 0 20px 30px rgba(0,0,0,0.08);
+            border: 2px solid var(--border);
+        }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .header h1 { font-size: 28px; margin: 0; color: var(--primary); }
+        .user-bar { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+        .user-tag { background: var(--bg-body); padding: 8px 14px; border-radius: 12px; border: 1px solid var(--border); font-size: 14px; }
+        
+        .theme-btn, .logout-btn { background: var(--bg-body); border: 2px solid var(--border); color: var(--text-main); padding: 8px 14px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; }
+        .logout-btn { border-color: #ef4444; color: #ef4444; }
+
+        .progress-box { background: var(--bg-body); padding: 20px; border-radius: 18px; margin-bottom: 24px; border: 1px solid var(--border); }
+        .progress-info { display: flex; justify-content: space-between; font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+        .progress-bg { background: var(--border); height: 16px; border-radius: 8px; overflow: hidden; }
+        .progress-fill { background: var(--success); height: 100%; width: 0%; transition: width 0.4s; }
+
+        .input-form { display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr auto; gap: 12px; margin-bottom: 24px; }
+        input, select { background: var(--bg-body); border: 2px solid var(--border); color: var(--text-main); padding: 16px; border-radius: 16px; font-size: 18px; font-weight: 600; outline: none; width: 100%; }
+        input:focus, select:focus { border-color: var(--primary); }
+        
+        .add-btn { background: var(--primary); color: white; border: none; padding: 16px 24px; border-radius: 16px; font-size: 18px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+
+        @media (max-width: 640px) {
+            .input-form { grid-template-columns: 1fr 1fr; }
+            .input-form input[type="text"] { grid-column: span 2; }
+            .add-btn { grid-column: span 2; }
+            .app-container { padding: 16px; }
+            input, select, .add-btn { font-size: 16px; padding: 12px; }
+        }
+
+        .filters { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 20px; }
+        .filter-btn { background: var(--bg-body); border: 2px solid var(--border); color: var(--text-muted); padding: 10px 18px; border-radius: 30px; font-size: 16px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .item-list { list-style: none; padding: 0; margin: 0; }
+        .item-card { display: flex; align-items: center; justify-content: space-between; background: var(--bg-body); padding: 18px; border-radius: 20px; margin-bottom: 12px; border: 2px solid var(--border); }
+        .item-card.completed { background: #e2e8f0; opacity: 0.7; }
+        [data-theme="dark"] .item-card.completed { background: #1e293b; opacity: 0.5; }
+        .item-card.completed .item-name { text-decoration: line-through; color: var(--text-muted); }
+
+        .item-left { display: flex; align-items: center; gap: 16px; flex: 1; }
+        .check-btn { background: #ffffff; border: 3px solid var(--border); color: transparent; width: 44px; height: 44px; border-radius: 14px; font-size: 24px; font-weight: 900; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; flex-shrink: 0; }
+        .item-card.completed .check-btn { background: var(--success); border-color: var(--success); color: white; }
+
+        .item-details { display: flex; flex-direction: column; }
+        .item-name { font-weight: 700; font-size: 20px; }
+        .item-meta { font-size: 14px; color: var(--text-muted); display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+
+        .badge { padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 13px; }
+        .cat-อาหารสด { background: var(--cat-fresh); color: var(--cat-fresh-txt); }
+        .cat-ของใช้ { background: var(--cat-use); color: var(--cat-use-txt); }
+        .cat-เครื่องดื่ม { background: var(--cat-drink); color: var(--cat-drink-txt); }
+        .cat-อื่นๆ { background: var(--cat-other); color: var(--cat-other-txt); }
+
+        .added-by { font-size: 12px; opacity: 0.8; background: var(--border); padding: 2px 8px; border-radius: 6px; }
+
+        .item-right { display: flex; align-items: center; gap: 16px; }
+        .price-tag { font-weight: 700; font-size: 20px; color: var(--primary); }
+        .del-btn { background: #fee2e2; border: none; color: #ef4444; width: 40px; height: 40px; border-radius: 12px; cursor: pointer; font-size: 20px; font-weight: 700; }
+
+        .footer-summary { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 20px; border-top: 2px solid var(--border); }
+        .total-amount { font-size: 24px; font-weight: 700; color: var(--primary); }
+
+        .tools-bar { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+        .tool-btn { background: none; border: 2px solid var(--border); color: var(--text-muted); padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; flex: 1; }
+    </style>
+</head>
+<body>
+
+<!-- หน้าเข้าสู่ระบบ (UI เดิม มีแค่ Username & Password) -->
+<div class="auth-card" id="authScreen">
+    <h2>☁️ Smart Cart Cloud</h2>
+    <p>ระบบสมัครสมาชิกเพื่อซิงค์ข้อมูลข้ามอุปกรณ์</p>
+
+    <input type="text" id="userInput" class="auth-input" placeholder="ชื่อผู้ใช้งาน (Username)" required />
+    <input type="password" id="passInput" class="auth-input" placeholder="รหัสผ่าน (Password)" required />
+    
+    <div class="btn-group">
+        <button class="btn-submit" onclick="handleAuth('login')">เข้าสู่ระบบ</button>
+        <button class="btn-secondary" onclick="handleAuth('register')">สมัครสมาชิก</button>
+    </div>
+</div>
+
+<!-- หน้าแอปหลัก -->
+<div class="app-container" id="appScreen">
+    <div class="header">
+        <div>
+            <h1 style="display:inline-block; margin-right: 10px;">🛒 Smart Cart</h1>
+        </div>
+        <div class="user-bar">
+            <span class="user-tag" id="userNameTxt">👤 -</span>
+            <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">🌙</button>
+            <button class="logout-btn" onclick="logout()">ออกจากระบบ</button>
+        </div>
+    </div>
+
+    <!-- แถบจัดการรหัสห้องจัดซื้อ แปะไว้ใน UI ซื้อของ -->
+    <div class="room-bar">
+        <span>🔑 รหัสห้องปัจจุบัน: <strong id="roomTxt" style="text-decoration: underline;">-</strong></span>
+        <div class="room-actions">
+            <button class="room-btn" onclick="copyRoomCode()">📋 คัดลอกรหัส</button>
+            <button class="room-btn" onclick="joinNewRoom()">🔗 ย้าย/เข้าร่วมห้อง</button>
+        </div>
+    </div>
+
+    <div class="progress-box">
+        <div class="progress-info">
+            <span>ความคืบหน้าการซื้อ</span>
+            <span id="progressTxt">0%</span>
+        </div>
+        <div class="progress-bg">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+    </div>
+
+    <div class="input-form">
+        <input type="text" id="nameIn" placeholder="ชื่อสินค้า..." />
+        <select id="catIn">
+            <option value="อาหารสด">🥬 อาหารสด</option>
+            <option value="ของใช้">🧼 ของใช้</option>
+            <option value="เครื่องดื่ม">🧃 เครื่องดื่ม</option>
+            <option value="อื่นๆ">📦 อื่นๆ</option>
+        </select>
+        <input type="number" id="qtyIn" value="1" min="1" placeholder="จำนวน" />
+        <input type="number" id="priceIn" placeholder="ราคา/ชิ้น" min="0" />
+        <button class="add-btn" onclick="addItem()">+ เพิ่มรายการ</button>
+    </div>
+
+    <div class="filters">
+        <button class="filter-btn active" onclick="setFilter('ทั้งหมด', this)">ทั้งหมด</button>
+        <button class="filter-btn" onclick="setFilter('อาหารสด', this)">🥬 อาหารสด</button>
+        <button class="filter-btn" onclick="setFilter('ของใช้', this)">🧼 ของใช้</button>
+        <button class="filter-btn" onclick="setFilter('เครื่องดื่ม', this)">🧃 เครื่องดื่ม</button>
+        <button class="filter-btn" onclick="setFilter('อื่นๆ', this)">📦 อื่นๆ</button>
+    </div>
+
+    <ul class="item-list" id="itemList"></ul>
+
+    <div class="footer-summary">
+        <span style="font-size: 18px; font-weight: 600;">ยอดรวมทั้งหมด:</span>
+        <span class="total-amount" id="totalPrice">฿0</span>
+    </div>
+
+    <div class="tools-bar">
+        <button class="tool-btn" onclick="clearCompleted()">🧹 ลบรายการที่ซื้อแล้ว</button>
+        <button class="tool-btn" onclick="clearAll()">🗑️ ลบทั้งหมดในห้องนี้</button>
+    </div>
+</div>
+
+<script>
+    // Firebase Config
+    const firebaseConfig = {
+        apiKey: "AIzaSyBGPooW7OH2G21-rU4Hvx_hLBawxcHWFCQ",
+        authDomain: "smart-shop-f5629.firebaseapp.com",
+        databaseURL: "https://smart-shop-f5629-default-rtdb.firebaseio.com",
+        projectId: "smart-shop-f5629",
+        storageBucket: "smart-shop-f5629.firebasestorage.app",
+        messagingSenderId: "905090100159",
+        appId: "1:905090100159:web:3d46db964d6b96050fcf0a"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let currentUser = null;
+    let currentRoom = null;
+    let items = [];
+    let activeCategory = 'ทั้งหมด';
+    let roomRef = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+        checkSession();
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.setAttribute('data-theme', 'dark');
+            document.getElementById('themeBtn').innerText = '☀️';
+        }
+    });
+
+    function checkSession() {
+        const savedUser = localStorage.getItem('cloud_cart_user');
+        if (savedUser) {
+            currentUser = savedUser;
+            
+            // ถ้ารังห้องยังไม่มี ให้ใช้รหัสห้องเริ่มต้นเป็น Username ของตัวเอง
+            currentRoom = localStorage.getItem('cloud_cart_room') || currentUser;
+            localStorage.setItem('cloud_cart_room', currentRoom);
+
+            document.getElementById('authScreen').style.display = 'none';
+            document.getElementById('appScreen').style.display = 'block';
+            document.getElementById('userNameTxt').innerText = `👤 ${currentUser}`;
+            document.getElementById('roomTxt').innerText = currentRoom;
+            
+            listenToCloudData();
+        } else {
+            document.getElementById('authScreen').style.display = 'block';
+            document.getElementById('appScreen').style.display = 'none';
+        }
+    }
+
+    function handleAuth(type) {
+        const username = document.getElementById('userInput').value.trim().toLowerCase();
+        const password = document.getElementById('passInput').value;
+
+        if (!username || !password) {
+            alert('กรุณากรอก Username และ Password ให้ครบถ้วน');
+            return;
+        }
+
+        const userRef = db.ref('users/' + username);
+
+        if (type === 'register') {
+            userRef.once('value', snapshot => {
+                if (snapshot.exists()) {
+                    alert('❌ ชื่อผู้ใช้นี้ถูกใช้งานแล้ว!');
+                } else {
+                    userRef.set({ password: password }).then(() => {
+                        alert('✅ สมัครสมาชิกสำเร็จ!');
+                        localStorage.setItem('cloud_cart_user', username);
+                        localStorage.setItem('cloud_cart_room', username); // ตั้งรหัสห้องเริ่มต้นเป็น username
+                        checkSession();
+                    });
+                }
+            });
+        } else if (type === 'login') {
+            userRef.once('value', snapshot => {
+                if (snapshot.exists() && snapshot.val().password === password) {
+                    localStorage.setItem('cloud_cart_user', username);
+                    if (!localStorage.getItem('cloud_cart_room')) {
+                        localStorage.setItem('cloud_cart_room', username);
+                    }
+                    checkSession();
+                } else {
+                    alert('❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+                }
+            });
+        }
+    }
+
+    // ฟังข้อมูล Realtime จาก Realtime Database ตามรหัสห้อง
+    function listenToCloudData() {
+        if (roomRef) roomRef.off(); // ปิด listener เก่าก่อนย้ายห้อง
+
+        roomRef = db.ref('room_carts/' + currentRoom);
+        roomRef.on('value', snapshot => {
+            const data = snapshot.val();
+            items = data ? Object.values(data) : [];
+            render();
+        });
+    }
+
+    function saveToCloud() {
+        if (currentRoom) {
+            db.ref('room_carts/' + currentRoom).set(items);
+        }
+    }
+
+    // ฟังก์ชันย้าย/เข้าร่วมห้องอื่นจากหน้า UI ซื้อของ
+    function joinNewRoom() {
+        const newRoom = prompt("ใส่รหัสห้องที่คุณต้องการเข้าร่วม (เช่น Home123):", currentRoom);
+        if (newRoom && newRoom.trim() !== "") {
+            const formattedRoom = newRoom.trim().toLowerCase();
+            currentRoom = formattedRoom;
+            localStorage.setItem('cloud_cart_room', currentRoom);
+            document.getElementById('roomTxt').innerText = currentRoom;
+            
+            listenToCloudData();
+            alert(`✅ ย้ายเข้าสู่ห้อง "${currentRoom}" เรียบร้อยแล้ว!`);
+        }
+    }
+
+    // ฟังก์ชันคัดลอกรหัสห้องให้เพื่อน
+    function copyRoomCode() {
+        navigator.clipboard.writeText(currentRoom).then(() => {
+            alert(`📋 คัดลอกรหัสห้อง "${currentRoom}" แล้ว! ส่งให้เพื่อนหรือคนในบ้านเข้าร่วมได้เลย`);
+        }).catch(() => {
+            alert(`รหัสห้องของคุณคือ: ${currentRoom}`);
+        });
+    }
+
+    function logout() {
+        if (roomRef) roomRef.off();
+        localStorage.removeItem('cloud_cart_user');
+        localStorage.removeItem('cloud_cart_room');
+        currentUser = null;
+        currentRoom = null;
+        items = [];
+        checkSession();
+    }
+
+    function addItem() {
+        const name = document.getElementById('nameIn').value.trim();
+        const category = document.getElementById('catIn').value;
+        const qty = parseInt(document.getElementById('qtyIn').value) || 1;
+        const price = parseFloat(document.getElementById('priceIn').value) || 0;
+
+        if (!name) return;
+
+        items.push({ 
+            id: Date.now(), 
+            name, 
+            category, 
+            qty, 
+            price, 
+            completed: false,
+            addedBy: currentUser 
+        });
+        
+        saveToCloud();
+
+        document.getElementById('nameIn').value = '';
+        document.getElementById('priceIn').value = '';
+        document.getElementById('qtyIn').value = 1;
+    }
+
+    function toggleCheck(id) {
+        items = items.map(item => item.id === id ? { ...item, completed: !item.completed } : item);
+        saveToCloud();
+    }
+
+    function deleteItem(id) {
+        items = items.filter(item => item.id !== id);
+        saveToCloud();
+    }
+
+    function setFilter(cat, btn) {
+        activeCategory = cat;
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        render();
+    }
+
+    function clearCompleted() {
+        items = items.filter(item => !item.completed);
+        saveToCloud();
+    }
+
+    function clearAll() {
+      
